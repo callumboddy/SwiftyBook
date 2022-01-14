@@ -1,2 +1,3 @@
 # SwiftyBook
-SwiftUI component documentation
+
+A description of this package.
