@@ -25,7 +25,7 @@ public class SwiftyBookCreator {
             let content = try await inner.asyncMap { try await snapshot(story: $0) }.flatMap { $0 }
             return [title] + content
         }
-        return output.flatMap { $0 }
+        return output.flatMap { $0 }.sorted(by: { $0.content < $1.content })
     }
 
     func snapshot(story: Story) async throws -> [MarkdownPresentable] {
@@ -139,19 +139,5 @@ public enum SwiftyBookError: Error, LocalizedError {
         case .failedToSaveImage(let name):
             return "Failed to create and store image for \(name)"
         }
-    }
-}
-
-extension Sequence {
-    func asyncMap<T>(
-        _ transform: (Element) async throws -> T
-    ) async rethrows -> [T] {
-        var values = [T]()
-
-        for element in self {
-            try await values.append(transform(element))
-        }
-
-        return values
     }
 }
