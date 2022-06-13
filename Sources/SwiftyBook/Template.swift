@@ -9,8 +9,17 @@ import Foundation
 import XCTest
 
 public protocol SwiftyBookTemplate {
+
     var stories: [SwiftyBook.Story] { get }
+
+    /** The parent path at which the output SwiftBook directory will be created
+
+     var root: String {
+         return #filePath
+     }
+    */
     var root: String { get }
+
     var title: String { get }
 
     @MainActor
@@ -21,10 +30,6 @@ public protocol SwiftyBookTemplate {
 }
 
 public extension SwiftyBookTemplate where Self: XCTestCase {
-    
-    var root: String {
-        return #filePath
-    }
 
     @MainActor
     func generate() {

@@ -13,7 +13,7 @@ public class SwiftyBookCreator {
     }
 
     public func create(from book: Book) async throws {
-        let title = [Markdown.Header(level: .h1, header: "SwiftyBook Design System")]
+        let title = [Markdown.Header(level: .h1, header: book.title)]
         let content = try await snapshot(stories: book.stories)
         try MarkdownFileGenerator(directory: configuration.directory, markdown: title + content).write()
     }
@@ -25,17 +25,17 @@ public class SwiftyBookCreator {
             let content = try await inner.asyncMap { try await snapshot(story: $0) }.flatMap { $0 }
             return [title] + content
         }
-        return output.flatMap { $0 }.sorted(by: { $0.content < $1.content })
+        return output.flatMap { $0 }
     }
 
     func snapshot(story: Story) async throws -> [MarkdownPresentable] {
         let content: [MarkdownPresentable] = try await story.previews.enumerated().asyncMap { index, preview in
             do {
-                let fileName = story.name(for: preview, at: index)
-                let savedImage = try await store(imageOf: preview.content, with: fileName, delay: story.delay)
+                let fileName = story.filename(for: preview, at: index)
+                let savedImage = try await store(imageOf: preview.content, with: fileName, delay: story.delay, padding: story.padding)
                 let size = CGRect(origin: .zero, size: savedImage.size).integral.size
                 let path = URL(string: "Images")!.appendingPathComponent("\(fileName)" + configuration.format.extension)
-                return Markdown.Header(level: .h3, header: story.name) + Markdown.Image(path: path, width: size.width, height: size.height) + story.documentation
+                return Markdown.Header(level: .h3, header: story.name(for: preview, at: index)) + Markdown.Image(path: path, width: size.width, height: size.height) + story.documentation
             } catch {
                 throw SwiftyBookError.snapshotError(name: story.name)
             }
@@ -43,8 +43,8 @@ public class SwiftyBookCreator {
         return content
     }
 
-    @MainActor private func store(imageOf view: AnyView, with name: String, delay: TimeInterval) async throws -> UIImage {
-        if let image: UIImage = await view.convertedToImage(delay: delay).trimmingTransparentPixels(), let data = image.pngData() {
+    @MainActor private func store(imageOf view: AnyView, with name: String, delay: TimeInterval, padding: Bool) async throws -> UIImage {
+        if let image: UIImage = await view.convertedToImage(delay: delay, padding: padding).trimmingTransparentPixels(), let data = image.pngData() {
             let saveDir = URL(fileURLWithPath: configuration.imagesDirectory.path, isDirectory: true)
             let filePath = saveDir.appendingPathComponent("\(name)\(configuration.format.extension)")
             try data.write(to: filePath)
@@ -105,20 +105,33 @@ public struct Story {
     let category: String
     let previews: [_Preview]
     let delay: TimeInterval
+    let padding: Bool
     let documentation: MarkdownPresentable
 
-    public init(name: String, category: String = "", previews: [_Preview], delay: TimeInterval = 0, documentation: (() -> MarkdownPresentable) = { Markdown.Text(content: "") }){
+    public init(name: String, category: String = "", previews: [_Preview], delay: TimeInterval = 0, padding: Bool = true, documentation: (() -> MarkdownPresentable) = { Markdown.Text(content: "") }){
         self.name = name
         self.category = category
         self.previews = previews
         self.delay = delay
+        self.padding = padding
         self.documentation = documentation()
+    }
+
+    func filename(for preview: _Preview, at index: Int = 0) -> String {
+        var name = "\(name)"
+        if let displayName = preview.displayName {
+            name += "-\(displayName)"
+        }
+        if index > 0 {
+            name += "-\(index)"
+        }
+        return name
     }
 
     func name(for preview: _Preview, at index: Int = 0) -> String {
         var name = "\(name)"
         if let displayName = preview.displayName {
-            name += "-\(displayName)"
+            return displayName
         }
         if index > 0 {
             name += "-\(index)"
